@@ -1,0 +1,19 @@
+{
+    "name": "Ocular.Pipeline",
+    "rootNamespace": "Ocular.Pipeline",
+    "references": [
+        "Ocular.Core",
+        "Ocular.Data",
+        "Ocular.Anatomy",
+        "glTFast"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

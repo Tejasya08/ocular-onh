@@ -1,0 +1,49 @@
+# API keys — never commit these
+tripo_key.txt
+
+# Unity generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+build-output/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# Unity asset meta files for folders only
+/[Aa]ssets/[Aa]sset[Ss]tore-5.x/
+/[Aa]ssets/[Ss]tream[Ii]ng[Aa]ssets/
+
+# VS / Rider project files
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.ide
+.vs/
+.idea/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Pipeline job state — not patient data, but not useful in the repo either
+pipeline_job.json
+Inbox/done/
+GeneratedModels/

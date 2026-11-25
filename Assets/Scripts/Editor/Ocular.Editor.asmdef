@@ -1,0 +1,40 @@
+{
+    "name": "Ocular.Editor",
+    "rootNamespace": "Ocular.Editor",
+    "references": [
+        "Ocular.Core",
+        "Ocular.Data",
+        "Ocular.Anatomy",
+        "Ocular.Interaction",
+        "Ocular.Pipeline",
+        "Ocular.UI",
+        "UnityEngine.UI",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.XR.Management",
+        "Unity.XR.Management.Editor",
+        "WebXR"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.xr.management",
+            "expression": "3.0.0",
+            "define": "OCULAR_XRMGMT"
+        },
+        {
+            "name": "com.de-panther.webxr",
+            "expression": "0.20.0",
+            "define": "OCULAR_WEBXR"
+        }
+    ],
+    "noEngineReferences": false
+}

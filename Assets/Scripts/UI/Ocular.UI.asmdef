@@ -1,0 +1,21 @@
+{
+    "name": "Ocular.UI",
+    "rootNamespace": "Ocular.UI",
+    "references": [
+        "Ocular.Core",
+        "Ocular.Data",
+        "Ocular.Anatomy",
+        "Ocular.Interaction",
+        "Ocular.Pipeline",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

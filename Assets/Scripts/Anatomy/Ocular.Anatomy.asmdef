@@ -1,0 +1,17 @@
+{
+    "name": "Ocular.Anatomy",
+    "rootNamespace": "Ocular.Anatomy",
+    "references": [
+        "Ocular.Core",
+        "Ocular.Data"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

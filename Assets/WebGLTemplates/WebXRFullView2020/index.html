@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ocular — Glaucoma ONH Simulator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #000;
+      overflow: hidden;
+      font-family: system-ui, sans-serif;
+    }
+
+    #unity-container {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #unity-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Loading overlay                                                      */
+    /* ------------------------------------------------------------------ */
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #17191e;
+      color: #c8d4e0;
+      gap: 20px;
+      transition: opacity 0.4s ease;
+      z-index: 10;
+    }
+
+    #loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #loading-title {
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      color: #e8edf3;
+    }
+
+    #loading-status {
+      font-size: 14px;
+      color: #8a9ab0;
+      min-height: 1.4em;
+      text-align: center;
+      max-width: 420px;
+    }
+
+    #progress-bar-outer {
+      width: 320px;
+      height: 6px;
+      background: #2a3040;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    #progress-bar-inner {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #4a90d9, #72c3f5);
+      border-radius: 3px;
+      transition: width 0.2s ease;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* "Auto-importing" banner shown when ?image= is present               */
+    /* ------------------------------------------------------------------ */
+    #auto-import-banner {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      background: #1a2740;
+      color: #c0d8f0;
+      font-size: 13px;
+      text-align: center;
+      padding: 8px 16px;
+      z-index: 5;
+    }
+
+    #auto-import-banner.visible { display: block; }
+  </style>
+</head>
+<body>
+
+  <!-- Auto-import banner. Shown only when ?image= was supplied. -->
+  <div id="auto-import-banner">
+    Loading eye image from URL — please wait…
+  </div>
+
+  <div id="unity-container">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay">
+    <div id="loading-title">Ocular</div>
+    <div id="progress-bar-outer">
+      <div id="progress-bar-inner"></div>
+    </div>
+    <div id="loading-status">Initialising…</div>
+  </div>
+
+  <!--
+    Unity WebGL loader.
+    {{{ LOADER_FILENAME }}} and the other {{{ }}} tokens are replaced by the
+    Unity build system when it copies this template into the output folder.
+  -->
+  <script>
+    // ----------------------------------------------------------------
+    // 1. Read ?image= from the URL BEFORE Unity loads so we have it
+    //    ready the moment SendMessage becomes available.
+    // ----------------------------------------------------------------
+    var pendingImageUrl = new URLSearchParams(window.location.search).get('image');
+
+    if (pendingImageUrl) {
+      document.getElementById('auto-import-banner').classList.add('visible');
+    }
+
+    // ----------------------------------------------------------------
+    // 2. Unity loader configuration
+    //    Unity 6 uses createUnityInstance() from the generated .loader.js
+    // ----------------------------------------------------------------
+    var buildUrl     = "Build";
+    var loaderUrl    = buildUrl + "/{{{ LOADER_FILENAME }}}";
+    var config = {
+      dataUrl:            buildUrl + "/{{{ DATA_FILENAME }}}",
+      frameworkUrl:       buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+      codeUrl:            buildUrl + "/{{{ CODE_FILENAME }}}",
+      streamingAssetsUrl: "StreamingAssets",
+      companyName:        "{{{ COMPANY_NAME }}}",
+      productName:        "{{{ PRODUCT_NAME }}}",
+      productVersion:     "{{{ PRODUCT_VERSION }}}",
+    };
+
+    var progressBar   = document.getElementById('progress-bar-inner');
+    var statusLabel   = document.getElementById('loading-status');
+    var loadingOverlay = document.getElementById('loading-overlay');
+    var banner         = document.getElementById('auto-import-banner');
+
+    var script = document.createElement("script");
+    script.src = loaderUrl;
+    script.onload = function () {
+      createUnityInstance(document.getElementById("unity-canvas"), config, function (progress) {
+        progressBar.style.width = (100 * progress) + "%";
+        statusLabel.textContent  = progress < 1
+          ? "Loading… " + Math.round(progress * 100) + "%"
+          : "Starting…";
+      })
+      .then(function (unityInstance) {
+        // ----------------------------------------------------------------
+        // 3. Unity is fully initialised. Hide the loading overlay.
+        // ----------------------------------------------------------------
+        loadingOverlay.classList.add('hidden');
+
+        // ----------------------------------------------------------------
+        // 4. If a ?image= URL was supplied, forward it to EyeImportController
+        //    via SendMessage.
+        //
+        //    GameObject: "OpticNerveHead"
+        //      (created in OcularSceneGenerator.BuildOpticNerveHead)
+        //    Method:     "LoadFromUrl"
+        //      (public method added to EyeImportController.cs)
+        //
+        //    The two halves of the import — local measurement and Tripo
+        //    generation — deliberately do not wait for each other, so the
+        //    disc measurements appear within a second of Unity starting
+        //    while the generated eye model loads in the background.
+        // ----------------------------------------------------------------
+        if (pendingImageUrl) {
+          // Small delay so Unity's Start() methods have all run before we
+          // push the message in. SendMessage is synchronous but Start() is
+          // not guaranteed to have fired at the exact instant the Promise
+          // resolves.
+          setTimeout(function () {
+            unityInstance.SendMessage(
+              'OpticNerveHead',   // GameObject name (OcularSceneGenerator.cs line ~BuildOpticNerveHead)
+              'LoadFromUrl',      // EyeImportController.LoadFromUrl(string url)
+              pendingImageUrl
+            );
+
+            banner.textContent =
+              'Eye image received — segmenting and fitting… (3D model will follow)';
+          }, 500);
+        }
+      })
+      .catch(function (message) {
+        statusLabel.textContent = 'Failed to start: ' + message;
+        console.error('Unity WebGL failed to start:', message);
+      });
+    };
+
+    document.body.appendChild(script);
+
+    // ----------------------------------------------------------------
+    // 5. WebXR session helpers (required by com.de-panther.webxr).
+    //    These are thin shims; the real work is in the package JS.
+    //    If the WebXR package's own JS is included via its template,
+    //    these will be superseded. They are here as a safe fallback so
+    //    the page does not 404 when WebXR is not available.
+    // ----------------------------------------------------------------
+    if (typeof WebXR === 'undefined') {
+      window.WebXR = {};
+    }
+  </script>
+
+  <!--
+    WebXR JS hooks injected by com.de-panther.webxr.
+    The package's "Copy WebGLTemplates" step adds webxr.js here.
+    If the package template was not copied, only the VR/AR buttons are
+    affected — the measurement and Tripo pipeline work fine without it.
+  -->
+  {{{ WEBXR_SCRIPTS }}}
+
+</body>
+</html>

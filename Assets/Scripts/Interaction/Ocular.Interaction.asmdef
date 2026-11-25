@@ -1,0 +1,26 @@
+{
+    "name": "Ocular.Interaction",
+    "rootNamespace": "Ocular.Interaction",
+    "references": [
+        "Ocular.Core",
+        "Ocular.Data",
+        "Ocular.Anatomy",
+        "UnityEngine.UI",
+        "WebXR"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.de-panther.webxr",
+            "expression": "0.20.0",
+            "define": "OCULAR_WEBXR"
+        }
+    ],
+    "noEngineReferences": false
+}
