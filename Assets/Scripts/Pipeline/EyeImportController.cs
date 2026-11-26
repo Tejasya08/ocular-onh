@@ -186,7 +186,6 @@ namespace Ocular.Pipeline
                 ImportFile(_autoImportPath);
             }
         }
-
         private void OnDestroy()
         {
             if (_cancellation != null) _cancellation.Cancel();

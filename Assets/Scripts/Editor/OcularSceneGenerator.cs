@@ -104,6 +104,12 @@ namespace Ocular.Editor
             // Added before the HUD is built so BuildHud can find and bind it.
             onh.gameObject.AddComponent<EyeImportController>();
 
+            // On WebGL the file system is unavailable, so the key cannot be read
+            // from tripo_key.txt directly. TripoKeyLoader fetches it from the
+            // server at startup and saves it to PlayerPrefs so TripoCredentials
+            // can find it via the normal resolution chain.
+            onh.gameObject.AddComponent<TripoKeyLoader>();
+
             OrbitInspector camera = BuildCamera(onh.transform);
             DesktopPointer pointer = camera.GetComponent<DesktopPointer>();
             PlanimetryTool planimetry = BuildPlanimetry(onh, pointer);

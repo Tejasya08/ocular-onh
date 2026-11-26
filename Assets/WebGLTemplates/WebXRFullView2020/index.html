@@ -186,20 +186,19 @@
         //    while the generated eye model loads in the background.
         // ----------------------------------------------------------------
         if (pendingImageUrl) {
-          // Small delay so Unity's Start() methods have all run before we
-          // push the message in. SendMessage is synchronous but Start() is
-          // not guaranteed to have fired at the exact instant the Promise
-          // resolves.
+          // Wait 2 seconds after Unity init so TripoKeyLoader has time to
+          // fetch tripo_key.txt from the server and save it to PlayerPrefs
+          // before EyeImportController tries to resolve the key.
           setTimeout(function () {
             unityInstance.SendMessage(
-              'OpticNerveHead',   // GameObject name (OcularSceneGenerator.cs line ~BuildOpticNerveHead)
+              'OpticNerveHead',   // GameObject name (OcularSceneGenerator.cs)
               'LoadFromUrl',      // EyeImportController.LoadFromUrl(string url)
               pendingImageUrl
             );
 
             banner.textContent =
               'Eye image received — segmenting and fitting… (3D model will follow)';
-          }, 500);
+          }, 2000);
         }
       })
       .catch(function (message) {

@@ -362,8 +362,7 @@ namespace Ocular.UI
             if (_import.Progress >= 0f)
                 text += "  " + Mathf.RoundToInt(_import.Progress * 100f) + "%";
 
-            _importStatus.text = Wrap(text, 44);
-        }
+            _importStatus.text = Wrap(text, 44);        }
 
         /// <summary>
         /// VR and AR entry buttons.
