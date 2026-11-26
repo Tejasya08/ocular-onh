@@ -1,23 +1,10 @@
 # -----------------------------------------------------------------------------
 # Ocular — Build WebGL and deploy to GitHub Pages
 #
-# Triggered on every push to main. The built WebGL output is published to the
-# gh-pages branch, making the simulator available at:
-#
-#   https://tejasya08.github.io/ocular-onh/
-#
-# and accepting eye images via:
-#
-#   https://tejasya08.github.io/ocular-onh/?image=<signed-supabase-url>
-#
-# REQUIRED SECRETS (Settings → Secrets → Actions → New repository secret):
-#
+# REQUIRED SECRETS (Settings → Secrets → Actions):
 #   UNITY_EMAIL         — email you log into Unity with
 #   UNITY_PASSWORD      — your Unity account password
 #   TRIPO_API_KEY       — your Tripo API key (tsk_...)
-#
-# That's it for a Personal (free) licence. No .ulf file needed.
-# game-ci activates online using your email + password directly.
 # -----------------------------------------------------------------------------
 
 name: Build WebGL & Deploy
@@ -25,23 +12,19 @@ name: Build WebGL & Deploy
 on:
   push:
     branches: [main]
-  workflow_dispatch:        # allow manual trigger from the Actions tab
+  workflow_dispatch:
 
 permissions:
-  contents: write           # needed to push to gh-pages
+  contents: write
 
 jobs:
   build:
     name: Build Unity WebGL
     runs-on: ubuntu-latest
-    # Unity 6000.0.25f1 — keep in sync with ProjectSettings/ProjectVersion.txt
-    container:
-      image: unityci/editor:ubuntu-6000.0.25f1-webgl-3
-      options: --cpus 4 --memory 12g
 
     steps:
       # ------------------------------------------------------------------
-      # 1. Checkout source
+      # 1. Checkout
       # ------------------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,9 +32,7 @@ jobs:
           lfs: false
 
       # ------------------------------------------------------------------
-      # 2. Cache the Unity Library folder.
-      #    First build re-imports everything (~10 min).
-      #    Subsequent builds with no source change skip it entirely.
+      # 2. Cache Unity Library
       # ------------------------------------------------------------------
       - name: Cache Unity Library
         uses: actions/cache@v4
@@ -63,77 +44,60 @@ jobs:
             Library-
 
       # ------------------------------------------------------------------
-      # 3. Activate Unity Personal licence online.
-      #    game-ci logs in with email + password and writes a temp licence
-      #    file on the runner — no .ulf upload required for Personal tier.
-      # ------------------------------------------------------------------
-      - name: Activate Unity (Personal licence)
-        uses: game-ci/unity-activate@v2
-        env:
-          UNITY_EMAIL:    ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-
-      # ------------------------------------------------------------------
-      # 4. Generate the simulation scene from code.
-      #    The scene is not committed to the repo — always generated fresh.
+      # 3. Generate scene + Build WebGL via game-ci/unity-builder
+      #    unity-builder pulls the right Docker image internally, so no
+      #    container: block is needed and Docker-in-Docker is not required.
+      #
+      #    Two separate unity-builder calls:
+      #      a) GenerateBatch  — builds the scene asset from code
+      #      b) BuildWebGL     — produces the WebGL output
+      #
+      #    Both use the same image tag, resolved from ProjectVersion.txt.
       # ------------------------------------------------------------------
       - name: Generate scene
-        run: |
-          /opt/unity/Editor/Unity \
-            -batchmode -quit \
-            -projectPath "${{ github.workspace }}" \
-            -executeMethod Ocular.Editor.OcularSceneGenerator.GenerateBatch \
-            -logFile /dev/stdout
-
-      # ------------------------------------------------------------------
-      # 5. Build WebGL
-      # ------------------------------------------------------------------
-      - name: Build WebGL
-        run: |
-          /opt/unity/Editor/Unity \
-            -batchmode -quit \
-            -projectPath "${{ github.workspace }}" \
-            -executeMethod Ocular.Editor.OcularBuildPipeline.BuildWebGL \
-            -buildOutput "${{ github.workspace }}/build-output" \
-            -logFile /dev/stdout
-
-      # ------------------------------------------------------------------
-      # 6. Return the Personal licence seat so it can be reused.
-      #    If this step is skipped the seat stays claimed on Unity's servers
-      #    until it times out (usually a few days).
-      # ------------------------------------------------------------------
-      - name: Return Unity licence
-        uses: game-ci/unity-return-license@v2
-        if: always()
+        uses: game-ci/unity-builder@v4
         env:
           UNITY_EMAIL:    ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.0.25f1
+          targetPlatform: WebGL
+          buildMethod: Ocular.Editor.OcularSceneGenerator.GenerateBatch
+          buildName: OcularSim
+          buildsPath: build-output
+          allowDirtyBuild: true
+
+      - name: Build WebGL
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_EMAIL:    ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.0.25f1
+          targetPlatform: WebGL
+          buildMethod: Ocular.Editor.OcularBuildPipeline.BuildWebGL
+          buildName: OcularSim
+          buildsPath: build-output
+          allowDirtyBuild: true
+          customParameters: -buildOutput "${{ github.workspace }}/build-output"
 
       # ------------------------------------------------------------------
-      # 7. Write the Tripo API key beside the build output.
-      #    Unity's TripoCredentials resolves keys in this order at runtime:
-      #      1. TRIPO_API_KEY env var  (not available in a browser)
-      #      2. tripo_key.txt beside the page  ← this step
-      #      3. Whatever was typed into the app (PlayerPrefs)
-      #
-      #    NOTE: GitHub Pages serves this file publicly. Anyone who opens
-      #    DevTools can read it. Acceptable for a demo; if you need the key
-      #    kept private, proxy the Tripo calls server-side instead.
+      # 4. Write the Tripo API key into the build output folder.
+      #    Unity's TripoCredentials picks it up as tripo_key.txt at runtime.
       # ------------------------------------------------------------------
       - name: Write Tripo key file
         run: |
-          echo "${{ secrets.TRIPO_API_KEY }}" \
-            > "${{ github.workspace }}/build-output/WebGL/tripo_key.txt"
+          mkdir -p build-output/WebGL
+          echo "${{ secrets.TRIPO_API_KEY }}" > build-output/WebGL/tripo_key.txt
 
       # ------------------------------------------------------------------
-      # 8. Add .nojekyll so GitHub Pages serves _framework/ and Build/
-      #    without Jekyll stripping underscore-prefixed directories.
+      # 5. .nojekyll so GitHub Pages serves _framework/ correctly
       # ------------------------------------------------------------------
       - name: Add .nojekyll
-        run: touch "${{ github.workspace }}/build-output/WebGL/.nojekyll"
+        run: touch build-output/WebGL/.nojekyll
 
       # ------------------------------------------------------------------
-      # 9. Upload build as a workflow artefact (downloadable for 14 days)
+      # 6. Upload artefact
       # ------------------------------------------------------------------
       - name: Upload build artefact
         uses: actions/upload-artifact@v4
@@ -143,7 +107,7 @@ jobs:
           retention-days: 14
 
       # ------------------------------------------------------------------
-      # 10. Deploy to GitHub Pages (gh-pages branch)
+      # 7. Deploy to GitHub Pages
       # ------------------------------------------------------------------
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
