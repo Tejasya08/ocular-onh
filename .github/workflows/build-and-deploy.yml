@@ -121,7 +121,6 @@ jobs:
       #    kept private, proxy the Tripo calls server-side instead.
       # ------------------------------------------------------------------
       - name: Write Tripo key file
-        if: ${{ secrets.TRIPO_API_KEY != '' }}
         run: |
           echo "${{ secrets.TRIPO_API_KEY }}" \
             > "${{ github.workspace }}/build-output/WebGL/tripo_key.txt"
