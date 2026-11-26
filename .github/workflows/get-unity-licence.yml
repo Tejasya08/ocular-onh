@@ -1,0 +1,51 @@
+# -----------------------------------------------------------------------------
+# Run this workflow ONCE to generate the UNITY_LICENSE secret.
+# After it succeeds, copy the licence from the artefact and save it as the
+# UNITY_LICENSE secret, then you never need to run this again.
+#
+# How to use:
+#   1. Go to Actions → "Get Unity Licence" → Run workflow
+#   2. Wait ~2 minutes for it to finish
+#   3. Download the "Unity_v6000.x.ulf" artefact
+#   4. Open it in Notepad, select all, copy
+#   5. Go to Settings → Secrets → Actions → New secret
+#      Name:  UNITY_LICENSE
+#      Value: paste the entire file contents
+#   6. Run the main "Build WebGL & Deploy" workflow
+# -----------------------------------------------------------------------------
+
+name: Get Unity Licence
+
+on:
+  workflow_dispatch:
+
+jobs:
+  activation:
+    name: Request Unity licence file
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Request manual activation file
+        uses: game-ci/unity-request-activation-file@v2
+        with:
+          unityVersion: 6000.0.25f1
+
+      - name: Upload activation file
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unity_v6000.x.alf
+          path: Unity_v6000.x.alf
+
+      - name: Activate with Personal licence
+        uses: game-ci/unity-activate@v2
+        env:
+          UNITY_EMAIL:    ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_LICENSE:  ${{ secrets.UNITY_LICENSE }}
+
+      - name: Upload licence file
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unity_v6000.x.ulf
+          path: Unity_v6000.x.ulf
+          if-no-files-found: warn
