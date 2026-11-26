@@ -24,17 +24,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ------------------------------------------------------------------
-      # 1. Checkout
-      # ------------------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
         with:
           lfs: false
 
-      # ------------------------------------------------------------------
-      # 2. Cache Unity Library
-      # ------------------------------------------------------------------
       - name: Cache Unity Library
         uses: actions/cache@v4
         with:
@@ -44,9 +38,6 @@ jobs:
             Library-WebGL-
             Library-
 
-      # ------------------------------------------------------------------
-      # 3. Generate scene
-      # ------------------------------------------------------------------
       - name: Generate scene
         uses: game-ci/unity-builder@v4
         env:
@@ -59,9 +50,6 @@ jobs:
           buildMethod: Ocular.Editor.OcularSceneGenerator.GenerateBatch
           allowDirtyBuild: true
 
-      # ------------------------------------------------------------------
-      # 4. Build WebGL
-      # ------------------------------------------------------------------
       - name: Build WebGL
         uses: game-ci/unity-builder@v4
         env:
@@ -75,67 +63,136 @@ jobs:
           buildsPath: build-output
           allowDirtyBuild: true
 
-      # ------------------------------------------------------------------
-      # 5. Fix permissions
-      # ------------------------------------------------------------------
       - name: Fix build output ownership
         run: sudo chown -R $USER:$USER build-output
 
       - name: Show build output tree
         run: find build-output -type f | sort
 
-      # ------------------------------------------------------------------
-      # 6. Decompress .gz files so GitHub Pages can serve them.
-      #    unity-builder always gzips regardless of ProjectSettings.
-      #    GitHub Pages cannot set Content-Encoding: gzip headers, so the
-      #    browser rejects the files. We gunzip them here and strip the
-      #    .gz extension, then patch index.html to match.
-      # ------------------------------------------------------------------
+      # Decompress .gz — GitHub Pages can't serve them with correct headers
       - name: Decompress WebGL build files
         run: |
-          BUILD_DIR="build-output/WebGL/WebGL/Build"
-          if [ -d "$BUILD_DIR" ]; then
-            for f in "$BUILD_DIR"/*.gz; do
-              [ -f "$f" ] || continue
-              gunzip -f "$f"
-              echo "Decompressed: $f"
-            done
-          else
-            echo "Build dir not found at $BUILD_DIR, trying alternate path"
-            find build-output -name "*.gz" -exec gunzip -f {} \;
-          fi
+          find build-output -name "*.gz" | while read f; do
+            gunzip -f "$f"
+            echo "Decompressed: $f"
+          done
 
-      - name: Patch index.html to remove .gz references
+      # Remove .gz references from index.html
+      - name: Patch .gz references in index.html
         run: |
           INDEX=$(find build-output -name "index.html" | head -1)
-          if [ -f "$INDEX" ]; then
-            sed -i 's/\.framework\.js\.gz/\.framework\.js/g' "$INDEX"
-            sed -i 's/\.data\.gz/\.data/g' "$INDEX"
-            sed -i 's/\.wasm\.gz/\.wasm/g' "$INDEX"
-            sed -i 's/\.loader\.js\.gz/\.loader\.js/g' "$INDEX"
-            echo "Patched $INDEX"
-            grep -i "\.gz" "$INDEX" || echo "No .gz references remaining"
-          else
-            echo "index.html not found"
-          fi
+          echo "Patching: $INDEX"
+          sed -i 's/\.framework\.js\.gz/\.framework\.js/g' "$INDEX"
+          sed -i 's/\.data\.gz/\.data/g' "$INDEX"
+          sed -i 's/\.wasm\.gz/\.wasm/g' "$INDEX"
+          sed -i 's/\.loader\.js\.gz/\.loader\.js/g' "$INDEX"
+          grep -i "\.gz" "$INDEX" && echo "WARNING: .gz refs remain" || echo "OK: no .gz refs"
 
-      # ------------------------------------------------------------------
-      # 7. Write Tripo key + .nojekyll
-      # ------------------------------------------------------------------
+      # Inject ?image= handler + Tripo key fetcher into index.html.
+      # unity-builder ignores our WebGLTemplates folder, so we patch directly.
+      - name: Inject image URL handler into index.html
+        run: |
+          INDEX=$(find build-output -name "index.html" | head -1)
+          WEBGL_DIR=$(dirname "$INDEX")
+          echo "Injecting into: $INDEX"
+
+          python3 - "$INDEX" << 'PYEOF'
+          import sys, re
+
+          path = sys.argv[1]
+          with open(path, 'r', encoding='utf-8') as f:
+              html = f.read()
+
+          script = """
+          <script>
+          (function () {
+            // --- 1. Read ?image= from the URL ---
+            var params = new URLSearchParams(window.location.search);
+            var imageUrl = params.get('image');
+
+            // --- 2. Show banner if image URL present ---
+            if (imageUrl) {
+              var banner = document.createElement('div');
+              banner.id = 'ocular-banner';
+              banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#1a2740;color:#c0d8f0;font-size:13px;text-align:center;padding:8px 16px;z-index:9999;font-family:system-ui,sans-serif';
+              banner.textContent = 'Loading eye image\u2026 Unity is initialising.';
+              document.body.appendChild(banner);
+            }
+
+            // --- 3. Poll for unityInstance, then SendMessage ---
+            var attempts = 0;
+            var interval = setInterval(function () {
+              attempts++;
+              // unity-builder exposes the instance as window.unityInstance
+              var inst = window.unityInstance || window.unityGame;
+              if (inst && inst.SendMessage) {
+                clearInterval(interval);
+
+                // Fetch tripo_key.txt from same origin and store in localStorage
+                // so TripoCredentials can pick it up via UnityWebRequest
+                fetch('./tripo_key.txt')
+                  .then(function(r){ return r.text(); })
+                  .then(function(key){
+                    key = key.trim();
+                    if (key && key.startsWith('tsk_')) {
+                      // Pass key directly to Unity via SendMessage
+                      try {
+                        inst.SendMessage('OpticNerveHead', 'SetTripoKey', key);
+                      } catch(e) {}
+                    }
+                  })
+                  .catch(function(){});
+
+                if (!imageUrl) return;
+
+                // Extra 2s so TripoKeyLoader coroutine finishes
+                setTimeout(function () {
+                  try {
+                    inst.SendMessage('OpticNerveHead', 'LoadFromUrl', imageUrl);
+                    var b = document.getElementById('ocular-banner');
+                    if (b) b.textContent = 'Eye image received \u2014 analysing disc and cup\u2026 (3D model arrives in ~1 min)';
+                  } catch (e) {
+                    console.error('SendMessage LoadFromUrl failed:', e);
+                    var b = document.getElementById('ocular-banner');
+                    if (b) b.textContent = 'Error: ' + e.message;
+                  }
+                }, 2000);
+
+              } else if (attempts > 300) {
+                clearInterval(interval);
+                console.error('unityInstance not found after 30s');
+                var b = document.getElementById('ocular-banner');
+                if (b) b.textContent = 'Unity did not initialise. Please reload.';
+              }
+            }, 100);
+          })();
+          </script>
+          """
+
+          # Inject before </body>
+          if '</body>' in html:
+              html = html.replace('</body>', script + '\n</body>')
+          else:
+              html += script
+
+          with open(path, 'w', encoding='utf-8') as f:
+              f.write(html)
+
+          print("Injected successfully into", path)
+          PYEOF
+
+      # Write Tripo key beside index.html
       - name: Write Tripo key file
         run: |
           WEBGL_DIR=$(find build-output -name "index.html" -exec dirname {} \; | head -1)
-          echo "WebGL dir: $WEBGL_DIR"
           echo "${{ secrets.TRIPO_API_KEY }}" > "$WEBGL_DIR/tripo_key.txt"
+          echo "Wrote key to $WEBGL_DIR/tripo_key.txt"
 
       - name: Add .nojekyll
         run: |
           WEBGL_DIR=$(find build-output -name "index.html" -exec dirname {} \; | head -1)
           touch "$WEBGL_DIR/.nojekyll"
 
-      # ------------------------------------------------------------------
-      # 8. Upload artefact
-      # ------------------------------------------------------------------
       - name: Upload build artefact
         uses: actions/upload-artifact@v4
         with:
@@ -143,9 +200,6 @@ jobs:
           path: build-output/WebGL/WebGL
           retention-days: 14
 
-      # ------------------------------------------------------------------
-      # 9. Deploy to GitHub Pages
-      # ------------------------------------------------------------------
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:

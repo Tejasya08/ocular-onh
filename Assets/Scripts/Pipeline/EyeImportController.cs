@@ -209,6 +209,18 @@ namespace Ocular.Pipeline
             return null;
         }
 
+        /// <summary>
+        /// Called by the page JS to push the Tripo API key directly into Unity.
+        /// Saves it to PlayerPrefs so TripoCredentials.Resolve() finds it.
+        /// This is the WebGL path — file system and env vars are unavailable.
+        /// </summary>
+        public void SetTripoKey(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return;
+            TripoCredentials.Save(key);
+            OLog.Info(LogCat.UI, "Tripo key set via SetTripoKey: " + TripoCredentials.Describe(key));
+        }
+
         /// <summary>Opens the OS file picker and imports whatever is chosen.</summary>
         public void PickAndImport()
         {
