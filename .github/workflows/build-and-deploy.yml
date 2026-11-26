@@ -61,8 +61,6 @@ jobs:
 
       # ------------------------------------------------------------------
       # 4. Build WebGL
-      #    unity-builder output lands at: build-output/WebGL/WebGL/
-      #      (buildsPath / targetPlatform / buildName)
       # ------------------------------------------------------------------
       - name: Build WebGL
         uses: game-ci/unity-builder@v4
@@ -78,8 +76,7 @@ jobs:
           allowDirtyBuild: true
 
       # ------------------------------------------------------------------
-      # 5. Fix permissions (unity-builder writes as root inside Docker)
-      #    and show the output tree so we know the exact path.
+      # 5. Fix permissions
       # ------------------------------------------------------------------
       - name: Fix build output ownership
         run: sudo chown -R $USER:$USER build-output
@@ -88,18 +85,56 @@ jobs:
         run: find build-output -type f | sort
 
       # ------------------------------------------------------------------
-      # 6. Write Tripo key + .nojekyll into the WebGL output folder.
-      #    unity-builder puts the build at build-output/WebGL/WebGL/
+      # 6. Decompress .gz files so GitHub Pages can serve them.
+      #    unity-builder always gzips regardless of ProjectSettings.
+      #    GitHub Pages cannot set Content-Encoding: gzip headers, so the
+      #    browser rejects the files. We gunzip them here and strip the
+      #    .gz extension, then patch index.html to match.
+      # ------------------------------------------------------------------
+      - name: Decompress WebGL build files
+        run: |
+          BUILD_DIR="build-output/WebGL/WebGL/Build"
+          if [ -d "$BUILD_DIR" ]; then
+            for f in "$BUILD_DIR"/*.gz; do
+              [ -f "$f" ] || continue
+              gunzip -f "$f"
+              echo "Decompressed: $f"
+            done
+          else
+            echo "Build dir not found at $BUILD_DIR, trying alternate path"
+            find build-output -name "*.gz" -exec gunzip -f {} \;
+          fi
+
+      - name: Patch index.html to remove .gz references
+        run: |
+          INDEX=$(find build-output -name "index.html" | head -1)
+          if [ -f "$INDEX" ]; then
+            sed -i 's/\.framework\.js\.gz/\.framework\.js/g' "$INDEX"
+            sed -i 's/\.data\.gz/\.data/g' "$INDEX"
+            sed -i 's/\.wasm\.gz/\.wasm/g' "$INDEX"
+            sed -i 's/\.loader\.js\.gz/\.loader\.js/g' "$INDEX"
+            echo "Patched $INDEX"
+            grep -i "\.gz" "$INDEX" || echo "No .gz references remaining"
+          else
+            echo "index.html not found"
+          fi
+
+      # ------------------------------------------------------------------
+      # 7. Write Tripo key + .nojekyll
       # ------------------------------------------------------------------
       - name: Write Tripo key file
         run: |
-          echo "${{ secrets.TRIPO_API_KEY }}" > build-output/WebGL/WebGL/tripo_key.txt
+          WEBGL_DIR=$(find build-output -name "index.html" -exec dirname {} \; | head -1)
+          echo "WebGL dir: $WEBGL_DIR"
+          echo "${{ secrets.TRIPO_API_KEY }}" > "$WEBGL_DIR/tripo_key.txt"
 
       - name: Add .nojekyll
-        run: touch build-output/WebGL/WebGL/.nojekyll
+        run: |
+          WEBGL_DIR=$(find build-output -name "index.html" -exec dirname {} \; | head -1)
+          touch "$WEBGL_DIR/.nojekyll"
 
       # ------------------------------------------------------------------
-      # 7. Upload artefact
+      # 8. Upload artefact
       # ------------------------------------------------------------------
       - name: Upload build artefact
         uses: actions/upload-artifact@v4
@@ -109,7 +144,7 @@ jobs:
           retention-days: 14
 
       # ------------------------------------------------------------------
-      # 8. Deploy to GitHub Pages
+      # 9. Deploy to GitHub Pages
       # ------------------------------------------------------------------
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
