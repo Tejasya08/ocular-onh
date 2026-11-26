@@ -2,6 +2,7 @@
 # Ocular — Build WebGL and deploy to GitHub Pages
 #
 # REQUIRED SECRETS (Settings → Secrets → Actions):
+#   UNITY_LICENSE       — contents of your Unity_lic.ulf file
 #   UNITY_EMAIL         — email you log into Unity with
 #   UNITY_PASSWORD      — your Unity account password
 #   TRIPO_API_KEY       — your Tripo API key (tsk_...)
@@ -44,46 +45,39 @@ jobs:
             Library-
 
       # ------------------------------------------------------------------
-      # 3. Generate scene + Build WebGL via game-ci/unity-builder
-      #    unity-builder pulls the right Docker image internally, so no
-      #    container: block is needed and Docker-in-Docker is not required.
-      #
-      #    Two separate unity-builder calls:
-      #      a) GenerateBatch  — builds the scene asset from code
-      #      b) BuildWebGL     — produces the WebGL output
-      #
-      #    Both use the same image tag, resolved from ProjectVersion.txt.
+      # 3. Generate scene
       # ------------------------------------------------------------------
       - name: Generate scene
         uses: game-ci/unity-builder@v4
         env:
+          UNITY_LICENSE:  ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL:    ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           unityVersion: 6000.0.25f1
           targetPlatform: WebGL
           buildMethod: Ocular.Editor.OcularSceneGenerator.GenerateBatch
-          buildName: OcularSim
-          buildsPath: build-output
           allowDirtyBuild: true
 
+      # ------------------------------------------------------------------
+      # 4. Build WebGL
+      # ------------------------------------------------------------------
       - name: Build WebGL
         uses: game-ci/unity-builder@v4
         env:
+          UNITY_LICENSE:  ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL:    ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           unityVersion: 6000.0.25f1
           targetPlatform: WebGL
-          buildMethod: Ocular.Editor.OcularBuildPipeline.BuildWebGL
-          buildName: OcularSim
+          buildName: WebGL
           buildsPath: build-output
           allowDirtyBuild: true
           customParameters: -buildOutput "${{ github.workspace }}/build-output"
 
       # ------------------------------------------------------------------
-      # 4. Write the Tripo API key into the build output folder.
-      #    Unity's TripoCredentials picks it up as tripo_key.txt at runtime.
+      # 5. Write Tripo key
       # ------------------------------------------------------------------
       - name: Write Tripo key file
         run: |
@@ -91,13 +85,13 @@ jobs:
           echo "${{ secrets.TRIPO_API_KEY }}" > build-output/WebGL/tripo_key.txt
 
       # ------------------------------------------------------------------
-      # 5. .nojekyll so GitHub Pages serves _framework/ correctly
+      # 6. .nojekyll
       # ------------------------------------------------------------------
       - name: Add .nojekyll
         run: touch build-output/WebGL/.nojekyll
 
       # ------------------------------------------------------------------
-      # 6. Upload artefact
+      # 7. Upload artefact
       # ------------------------------------------------------------------
       - name: Upload build artefact
         uses: actions/upload-artifact@v4
@@ -107,7 +101,7 @@ jobs:
           retention-days: 14
 
       # ------------------------------------------------------------------
-      # 7. Deploy to GitHub Pages
+      # 8. Deploy to GitHub Pages
       # ------------------------------------------------------------------
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
