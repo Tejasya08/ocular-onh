@@ -94,12 +94,12 @@ namespace Ocular.Editor
             // button simply never becomes available.
             OcularXrSetup.ConfigureWebXr();
 
-            // Gzip with the decompression fallback ON. Brotli is smaller but needs
-            // the host to send matching Content-Encoding headers; get that wrong and
-            // the page is blank with only a console error. The fallback works on any
-            // static host, including GitHub Pages, at a small size cost.
-            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
-            PlayerSettings.WebGL.decompressionFallback = true;
+            // Disabled compression. GitHub Pages serves .gz files without the
+            // Content-Encoding: gzip header, which makes the browser fail to
+            // decompress them. Uncompressed files are larger but work on any
+            // static host including GitHub Pages with zero configuration.
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+            PlayerSettings.WebGL.decompressionFallback = false;
             PlayerSettings.WebGL.linkerTarget = WebGLLinkerTarget.Wasm;
             PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
             PlayerSettings.WebGL.dataCaching = true;
